@@ -1,0 +1,31 @@
+# Build output
+/bin/
+/build_dir/
+/staging_dir/
+/tmp/
+/logs/
+/.config.old
+/dl/
+
+# Editor and IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Local development
+*.log
+*.backup
+/backup/
+
+# Keep essential directories (DO NOT ignore)
+!/feeds/
+!/target/
+!/package/
+!/scripts/
+!/toolchain/
+!/tools/
+!/config/
+!/include/
