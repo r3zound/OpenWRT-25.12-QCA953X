@@ -56,30 +56,6 @@
 
 		/* GPIO 11 / GPIO 16 板上未接 LED，按实际空置 */
 	};
-
-	gpio-export {
-		compatible = "gpio-export";
-
-		/* GPIO 2: 4G 模块供电控制（必须拉高） */
-		lte_power {
-			gpio-export,name = "lte_power";
-			gpio-export,output = <1>;
-			gpios = <&gpio 2 GPIO_ACTIVE_HIGH>;
-		};
-	};
-
-	/* 注意：看门狗配置暂时禁用，避免与 GPIO 2（4G供电）冲突
-	 * 如果仍然循环重启，需要实测确认看门狗的真实 GPIO 配置
-	 * GL-X300B 用 dog_en_gpio=12 + feed_dog_gpio=2，但我们的 GPIO 2 已用于 4G 供电
-	 */
-	/*
-	watchdog {
-		compatible = "hw_wdt";
-		dog_en_gpio = <12>;
-		feed_dog_gpio = <2>;
-		feed_dog_interval = <100000000>;
-	};
-	*/
 };
 
 &usb0 {
