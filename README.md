@@ -44,12 +44,6 @@ make -j$(nproc) V=s
 └── configs/           # 设备配置文件
 ```
 
-## 已验证设备
-
-- EdgeLink EL-953 (QCA9531 工控 4G 模组)
-- ZBT WE826-Q (QCA9531)
-- GL.iNet GL-X300B (QCA9531)
-
 ## 开发说明
 
 ### 4G 模块配置
