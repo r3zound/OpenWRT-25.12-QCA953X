@@ -1,0 +1,135 @@
+name: Build OpenWrt Firmware
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  OPENWRT_REPO: https://github.com/openwrt/openwrt.git
+  OPENWRT_BRANCH: openwrt-25.12
+  DEVICE_TARGET: ath79
+  DEVICE_SUBTARGET: generic
+  DEVICE_PROFILE: edgelink_el-953
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Free up disk space
+      run: |
+        sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
+        sudo apt-get clean
+        df -h
+        
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential clang flex bison g++ gawk \
+          gcc-multilib g++-multilib gettext git libncurses-dev libssl-dev \
+          python3-distutils rsync unzip zlib1g-dev file wget
+          
+    - name: Clone OpenWrt source
+      run: |
+        git clone --depth 1 --single-branch --branch $OPENWRT_BRANCH $OPENWRT_REPO openwrt
+        
+    - name: Apply device patches
+      run: |
+        cd openwrt
+        bash ../patches/device-add.sh .
+        
+    - name: Update feeds
+      run: |
+        cd openwrt
+        ./scripts/feeds update -a
+        ./scripts/feeds install -a
+        
+    - name: Generate default config
+      run: |
+        cd openwrt
+        make defconfig
+        
+    - name: Configure device
+      run: |
+        cd openwrt
+        cat > .config <<EOF
+        CONFIG_TARGET_$DEVICE_TARGET=y
+        CONFIG_TARGET_${DEVICE_TARGET}_${DEVICE_SUBTARGET}=y
+        CONFIG_TARGET_${DEVICE_TARGET}_${DEVICE_SUBTARGET}_DEVICE_${DEVICE_PROFILE}=y
+        
+        # USB support
+        CONFIG_PACKAGE_kmod-usb-core=y
+        CONFIG_PACKAGE_kmod-usb2=y
+        CONFIG_PACKAGE_kmod-usb-ohci=y
+        CONFIG_PACKAGE_kmod-usb-uhci=y
+        
+        # 4G/LTE support (ECM mode)
+        CONFIG_PACKAGE_kmod-usb-net=y
+        CONFIG_PACKAGE_kmod-usb-net-cdc-ether=y
+        CONFIG_PACKAGE_kmod-usb-serial=y
+        CONFIG_PACKAGE_kmod-usb-serial-option=y
+        CONFIG_PACKAGE_kmod-usb-serial-wwan=y
+        
+        # Network tools
+        CONFIG_PACKAGE_uqmi=y
+        CONFIG_PACKAGE_comgt=y
+        CONFIG_PACKAGE_comgt-ncm=y
+        CONFIG_PACKAGE_luci-proto-3g=y
+        
+        # LuCI
+        CONFIG_PACKAGE_luci=y
+        CONFIG_PACKAGE_luci-ssl-openssl=y
+        CONFIG_PACKAGE_luci-app-firewall=y
+        CONFIG_PACKAGE_luci-app-opkg=y
+        
+        # Utilities
+        CONFIG_PACKAGE_wget-ssl=y
+        CONFIG_PACKAGE_curl=y
+        CONFIG_PACKAGE_htop=y
+        CONFIG_PACKAGE_iperf3=y
+        
+        # Disable some default packages to save space
+        # CONFIG_PACKAGE_ppp is not set
+        # CONFIG_PACKAGE_ppp-mod-pppoe is not set
+        EOF
+        make defconfig
+        
+    - name: Download packages
+      run: |
+        cd openwrt
+        make download -j$(nproc) V=s
+        
+    - name: Build firmware
+      run: |
+        cd openwrt
+        make -j$(nproc) V=s
+        
+    - name: Prepare artifacts
+      run: |
+        cd openwrt
+        mkdir -p ../artifacts
+        cp -f bin/targets/$DEVICE_TARGET/$DEVICE_SUBTARGET/*sysupgrade.bin ../artifacts/ || true
+        cp -f bin/targets/$DEVICE_TARGET/$DEVICE_SUBTARGET/*factory.bin ../artifacts/ || true
+        cp -f bin/targets/$DEVICE_TARGET/$DEVICE_SUBTARGET/sha256sums ../artifacts/ || true
+        ls -lh ../artifacts/
+        
+    - name: Upload firmware
+      uses: actions/upload-artifact@v4
+      with:
+        name: openwrt-firmware-${{ env.DEVICE_PROFILE }}
+        path: artifacts/*
+        
+    - name: Upload build config
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-config
+        path: openwrt/.config
