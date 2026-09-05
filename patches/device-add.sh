@@ -105,4 +105,34 @@ exit 0
 EOF
 chmod +x "$UCI/99-edgelink-4g"
 
+echo "[6/6] inject rc.local: force eth0/LAN up + boot diag log"
+RC="$SRC/target/linux/ath79/generic/base-files/etc/rc.local"
+mkdir -p "$(dirname "$RC")"
+if [ -f "$RC" ]; then
+  cp "$RC" "$RC.edgelink.bak" 2>/dev/null || true
+fi
+cat > "$RC" <<'EOF'
+# --- EdgeLink EL-953 force LAN + diag (injected) ---
+DIAG=/tmp/el953-diag.log
+{
+  echo "=== boot diag $(date) ==="
+  echo "--- ip link ---"; ip link 2>&1
+  echo "--- eth0 ---"; ip link show eth0 2>&1
+  echo "--- eth1 ---"; ip link show eth1 2>&1
+  echo "--- switch0 (swconfig) ---"; swconfig dev switch0 show 2>&1 || echo "no switch0"
+  echo "--- board_name ---"; cat /tmp/sysinfo/board_name 2>&1
+  echo "--- model ---"; cat /tmp/sysinfo/model 2>&1
+  echo "--- network cfg ---"; cat /etc/config/network 2>&1
+} > "$DIAG" 2>&1
+# also persist to overlay (r/w) if mounted
+mountpoint -q /etc 2>/dev/null && cp "$DIAG" /etc/el953-diag.log 2>/dev/null
+# Force eth0 up + give LAN a static addr even if network scripts did not run
+ip link set eth0 up 2>&1
+ip addr add 192.168.1.1/24 dev eth0 2>/dev/null || true
+ip link set br-lan up 2>/dev/null || true
+exit 0
+EOF
+chmod +x "$RC"
+echo "rc.local injected; boot diag at /tmp/el953-diag.log (+overlay /etc/el953-diag.log if r/w)"
+
 echo "device-add.sh done"
