@@ -1,0 +1,19 @@
+# feeds.conf.example — OpenWRT-25.12-QCA953X
+#
+# Copy to ../immortalwrt/feeds.conf (next to your OpenWrt source tree) and
+# run:  ./scripts/feeds update -a && ./scripts/feeds install -a
+#
+# The baseline OpenWrt/ImmortalWrt 25.12 tree ships with feeds.conf.default
+# pointing at the standard feeds (packages, luci, routing, telephony).
+# For the EdgeLink EL-953 build we additionally pull in:
+#   - modemfeed  (modeminfo, atinout, qtools, frpc, speedtestpp) from Y0518
+#
+# Pin modemfeed to a known-good commit; bump deliberately when you want to
+# upgrade.  The 609d43d pin matches the 21.02 self-contained build proven on
+# hardware (r3zound/immortalwrt-ath79).
+
+src-git packages     https://github.com/immortalwrt/packages.git
+src-git luci         https://github.com/immortalwrt/luci.git
+src-git routing      https://github.com/openwrt/routing.git
+src-git telephony    https://github.com/openwrt/telephony.git
+src-git modemfeed    https://github.com/Y0518/modemfeed.git^609d43d
