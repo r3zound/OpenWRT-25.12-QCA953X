@@ -1,0 +1,190 @@
+--- a/target/linux/ath79/image/generic.mk
++++ b/target/linux/ath79/image/generic.mk
+@@ -3456,3 +3456,22 @@
+   SUPPORTED_DEVICES += nbg6616
+ endef
+ TARGET_DEVICES += zyxel_nbg6616
++
++# DRAFT: single-slot WE826-Q; not compiled or hardware-tested.
++# Standard V1 MD5 was verified on the legacy image by the parent task.
++# 16Mlzma header max is 0xf80000; partition remains 0xfd0000.
++# Intentionally cap the candidate image at the smaller header limit.
++define Device/zbt_we826-q
++  $(Device/tplink-16mlzma)
++  SOC := qca9533
++  DEVICE_VENDOR := ZBT
++  DEVICE_MODEL := WE826-Q
++  DEVICE_PACKAGES := kmod-usb2
++  TPLINK_HWID := 0x0
++  TPLINK_HWREV := 0x1
++  IMAGE_SIZE := 15872k
++  IMAGES := sysupgrade.bin
++  IMAGE/sysupgrade.bin := tplink-v1-image sysupgrade | check-size | append-metadata
++  DEFAULT := n
++endef
++TARGET_DEVICES += zbt_we826-q
+--- a/target/linux/ath79/generic/base-files/etc/board.d/02_network
++++ b/target/linux/ath79/generic/base-files/etc/board.d/02_network
+@@ -8,6 +8,14 @@
+ 	local board="$1"
+ 
+ 	case "$board" in
++	zbt,we826-q)
++		# DRAFT: follow official qca9533 TL-WR842N v3 netdev naming.
++		# DTS eth0/eth1 labels do not guarantee Linux eth0/eth1 names.
++		# LAN physical order remains unverified; expose unlabeled LAN ports.
++		ucidef_set_interface_wan "eth1"
++		ucidef_add_switch "switch0" \
++			"0@eth0" "1:lan" "2:lan" "3:lan" "4:lan"
++		;;
+ 	adtran,bsap1800-v2|\
+ 	adtran,bsap1840|\
+ 	allnet,all-wap02860ac|\
+--- a/target/linux/ath79/generic/base-files/etc/board.d/01_leds
++++ b/target/linux/ath79/generic/base-files/etc/board.d/01_leds
+@@ -6,6 +6,11 @@
+ board=$(board_name)
+ 
+ case "$board" in
++zbt,we826-q)
++	# DRAFT: WAN naming follows the official comparable board.
++	ucidef_set_led_netdev "wan" "WAN" "wan" "eth1"
++	# No LAN switch masks until jack-to-switch-port order is verified.
++	;;
+ 8dev,carambola2)
+ 	ucidef_set_led_netdev "lan" "LAN" "orange:eth0" "eth0"
+ 	ucidef_set_led_switch "wan" "WAN" "orange:eth1" "switch0" "0x04"
+--- /dev/null
++++ b/target/linux/ath79/dts/qca9533_zbt_we826-q.dts
+@@ -0,0 +1,131 @@
++// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
++// DRAFT: legacy embedded DTB port; not compiled or hardware-tested.
++// Reference: OpenWrt v25.12.6 qca9533_tplink_tl-wr842n-v3.dts.
++// Legacy DTB SHA256: ebb7efc5348a0a2ccdea474cc09365aa97d98b129a599a154f62633257a5e4ee
++#include "qca953x.dtsi"
++#include <dt-bindings/gpio/gpio.h>
++#include <dt-bindings/input/input.h>
++
++/ {
++	compatible = "zbt,we826-q", "qca,qca9533";
++	model = "ZBT WE826-Q";
++
++	aliases {
++		label-mac-device = &eth1;
++	};
++
++	leds {
++		compatible = "gpio-leds";
++		// Colors were not established; do not invent green LED labels.
++		wifi {
++			label = "wifi";
++			gpios = <&gpio 12 GPIO_ACTIVE_LOW>;
++			linux,default-trigger = "phy0tpt";
++		};
++		wan {
++			label = "wan";
++			gpios = <&gpio 4 GPIO_ACTIVE_LOW>;
++		};
++		lan4 {
++			label = "lan4";
++			gpios = <&gpio 11 GPIO_ACTIVE_LOW>;
++		};
++		lan3 {
++			label = "lan3";
++			gpios = <&gpio 14 GPIO_ACTIVE_LOW>;
++		};
++		lan2 {
++			label = "lan2";
++			gpios = <&gpio 15 GPIO_ACTIVE_LOW>;
++		};
++		lan1 {
++			label = "lan1";
++			gpios = <&gpio 16 GPIO_ACTIVE_LOW>;
++		};
++	};
++
++	keys {
++		compatible = "gpio-keys";
++		reset {
++			label = "Reset button";
++			linux,code = <KEY_RESTART>;
++			gpios = <&gpio 17 GPIO_ACTIVE_LOW>;
++			debounce-interval = <60>;
++		};
++	};
++};
++
++&usb0 {
++	status = "okay";
++};
++
++&usb_phy {
++	status = "okay";
++};
++
++&spi {
++	status = "okay";
++	flash@0 {
++		compatible = "jedec,spi-nor";
++		reg = <0>;
++		spi-max-frequency = <25000000>;
++		partitions {
++			compatible = "fixed-partitions";
++			#address-cells = <1>;
++			#size-cells = <1>;
++			uboot: partition@0 {
++				label = "u-boot";
++				reg = <0x000000 0x020000>;
++				read-only;
++				nvmem-layout {
++					compatible = "fixed-layout";
++					#address-cells = <1>;
++					#size-cells = <1>;
++					macaddr_uboot_1fc00: macaddr@1fc00 {
++						compatible = "mac-base";
++						reg = <0x1fc00 0x6>;
++						#nvmem-cell-cells = <1>;
++					};
++				};
++			};
++			partition@20000 {
++				compatible = "tplink,firmware";
++				label = "firmware";
++				reg = <0x020000 0xfd0000>;
++			};
++			partition@ff0000 {
++				label = "art";
++				reg = <0xff0000 0x010000>;
++				read-only;
++				nvmem-layout {
++					compatible = "fixed-layout";
++					#address-cells = <1>;
++					#size-cells = <1>;
++					cal_art_1000: calibration@1000 {
++						reg = <0x1000 0x440>;
++					};
++				};
++			};
++		};
++	};
++};
++
++&eth0 {
++	status = "okay";
++	phy-mode = "mii";
++	phy-handle = <&swphy4>;
++	nvmem-cells = <&macaddr_uboot_1fc00 1>;
++	nvmem-cell-names = "mac-address";
++};
++
++&eth1 {
++	// GMII builtin-switch and fixed-link inherited from qca953x.dtsi.
++	nvmem-cells = <&macaddr_uboot_1fc00 0>;
++	nvmem-cell-names = "mac-address";
++};
++
++&wmac {
++	status = "okay";
++	nvmem-cells = <&macaddr_uboot_1fc00 0>, <&cal_art_1000>;
++	nvmem-cell-names = "mac-address", "calibration";
++};
