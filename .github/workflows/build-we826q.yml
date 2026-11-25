@@ -1,0 +1,134 @@
+name: WE826-Q experimental (not flashed)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 360
+    defaults:
+      run:
+        shell: bash
+    env:
+      OPENWRT_COMMIT: 64900e756efa667774214f9c6b17c113222e01f7
+      GOFLAGS: -p=2
+    steps:
+      - uses: actions/checkout@v4
+      - run: mkdir -p diagnostics
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential clang flex bison g++ gawk gcc-multilib g++-multilib gettext git libncurses-dev libssl-dev python3 python3-distutils python3-setuptools rsync swig unzip zlib1g-dev file wget curl xz-utils zstd libelf-dev libpython3-dev time
+      - uses: actions/checkout@v4
+        with:
+          repository: tailscale/tailscale
+          ref: v1.104.7
+          path: tailscale-src
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: tailscale-src/go.mod
+          cache: false
+      - run: bash we826q/build-tailscale.sh 2>&1 | tee diagnostics/tailscale.log
+      - run: bash we826q/prepare.sh 2>&1 | tee diagnostics/prepare.log
+      - run: |
+          cd openwrt
+          make download -j2 V=s 2>&1 | tee ../diagnostics/download.log
+          make -j2 V=s 2>&1 | tee ../diagnostics/build.log
+      - id: gate
+        run: |
+          target=openwrt/bin/targets/ath79/generic
+          shopt -s nullglob
+          images=("$target"/*zbt_we826-q-squashfs-sysupgrade.bin)
+          manifests=("$target"/*zbt_we826-q.manifest)
+          test "${#images[@]}" = 1
+          test "${#manifests[@]}" = 1
+          python3 we826q/verify-image.py "${images[0]}" "${manifests[0]}" | tee diagnostics/image-check.json
+          mkdir -p firmware
+          cp "${images[0]}" "${manifests[0]}" diagnostics/image-check.json firmware/
+          sha256sum firmware/*.bin > firmware/sha256sums
+      - if: always()
+        run: |
+          test ! -f openwrt/.config || cp openwrt/.config diagnostics/config
+          git -C openwrt rev-parse HEAD > diagnostics/openwrt-commit.txt || true
+          git -C tailscale-src rev-parse HEAD > diagnostics/tailscale-commit.txt || true
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: we826q-build-diagnostics
+          path: diagnostics/
+          retention-days: 14
+      - if: success() && steps.gate.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: we826q-experimental-NOT-FLASHED
+          path: firmware/
+          if-no-files-found: error
+          retention-days: 14
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
