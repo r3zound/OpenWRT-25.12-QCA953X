@@ -16,6 +16,7 @@ CONFIG_PACKAGE_kmod-tun=y
 CONFIG_PACKAGE_frpc=y
 CONFIG_PACKAGE_we826q-tailscale=y
 CONFIG_PACKAGE_ca-bundle=y
+CONFIG_PACKAGE_xz-utils=y
 CONFIG_PACKAGE_xz=y
 # CONFIG_PACKAGE_tailscale is not set
 # CONFIG_PACKAGE_tailscaled is not set

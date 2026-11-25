@@ -8,7 +8,8 @@ required = ['TARGET_ath79', 'TARGET_ath79_generic',
             'PACKAGE_we826q-tailscale', 'PACKAGE_ppp', 'PACKAGE_chat',
             'PACKAGE_modemmanager', 'MODEMMANAGER_WITH_NETIFD',
             'PACKAGE_luci-light', 'PACKAGE_luci-proto-modemmanager',
-            'PACKAGE_kmod-usb-serial-option', 'PACKAGE_kmod-tun', 'PACKAGE_xz',
+            'PACKAGE_kmod-usb-serial-option', 'PACKAGE_kmod-tun',
+            'PACKAGE_xz-utils', 'PACKAGE_xz',
             'PACKAGE_ca-bundle']
 for key in required:
     if f'CONFIG_{key}=y' not in lines:

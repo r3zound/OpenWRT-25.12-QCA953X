@@ -12,7 +12,7 @@ define Package/we826q-tailscale
   SECTION:=net
   CATEGORY:=Network
   TITLE:=Experimental source-built compressed Tailscale multicall
-  DEPENDS:=+xz +kmod-tun +ca-bundle
+  DEPENDS:=+xz-utils +xz +kmod-tun +ca-bundle
 endef
 
 define Build/Prepare
