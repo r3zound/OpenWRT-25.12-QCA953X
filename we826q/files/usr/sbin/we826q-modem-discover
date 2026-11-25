@@ -1,0 +1,54 @@
+#!/bin/sh
+# EC200T discovery and bounded cold-start recovery; no fixed modem/PPP index.
+. /usr/share/libubox/jshn.sh
+connected() {
+    json_load "$(ubus call network.interface.wwan status 2>/dev/null)" || return 1
+    json_get_var link_up up
+    [ "$link_up" = 1 ]
+}
+find_modem() {
+    for dev in /sys/bus/usb/devices/*; do
+        [ "$(cat "$dev/idVendor" 2>/dev/null)" = 2c7c ] || continue
+        [ "$(cat "$dev/idProduct" 2>/dev/null)" = 6026 ] || continue
+        path=$(readlink -f "$dev")
+        mmcli -m "$path" --output-keyvalue >/dev/null 2>&1 && return 0
+    done
+    return 1
+}
+attempt=0
+while [ "$attempt" -lt 3 ]; do
+    i=0
+    while [ "$i" -lt 60 ]; do
+        find_modem && break
+        i=$((i + 1))
+        sleep 5
+    done
+    if [ "$i" -lt 60 ]; then
+        if [ "$(uci -q get network.wwan.device)" != "$path" ]; then
+            uci set "network.wwan.device=$path"
+            uci commit network
+            ubus call network reload >/dev/null 2>&1
+        fi
+        ifup wwan
+        i=0
+        while [ "$i" -lt 18 ]; do
+            sleep 5
+            connected && break
+            i=$((i + 1))
+        done
+        if connected; then
+            logger -t we826q 'EC200T PPP interface is up'
+            exit 0
+        fi
+    fi
+    [ "$(uci -q get network.wwan.proto)" = modemmanager ] || exit 0
+    attempt=$((attempt + 1))
+    [ "$attempt" -lt 3 ] || break
+    logger -t we826q 'PPP unavailable; bounded ModemManager cold-start recovery'
+    /etc/init.d/modemmanager stop
+    sleep 6
+    /etc/init.d/modemmanager start
+    sleep 15
+done
+logger -t we826q 'EC200T recovery budget exhausted; inspect modem and SIM'
+exit 1
