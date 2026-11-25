@@ -1,0 +1,22 @@
+#!/bin/sh
+# EXPERIMENTAL NOT FLASHED. EC200T (2c7c:6026); MM discovers AT/data ports.
+[ "$(cat /tmp/sysinfo/board_name 2>/dev/null)" = 'zbt,we826-q' ] || exit 0
+uci set network.lan.ipaddr='192.168.2.1'
+uci -q delete network.wan6 || :
+uci set network.wwan=interface
+uci set network.wwan.proto='modemmanager'
+uci set network.wwan.apn='cmnet'
+uci set network.wwan.iptype='ipv4v6'
+uci set network.wwan.metric='10'
+# Disable automatic IPv6 child DHCP on Ethernet WAN; MM owns the cellular bearer.
+uci set network.wan.ipv6='0'
+for zone in $(uci show firewall | sed -n 's/^firewall\.\([^=]*\)\.name=.wan.$/\1/p'); do
+    uci -q del_list "firewall.$zone.network=wwan" || :
+    uci add_list "firewall.$zone.network=wwan"
+done
+uci commit network
+uci commit firewall
+# Feed frpc is source-built but must stay unconfigured and stopped.
+/etc/init.d/frpc disable 2>/dev/null || :
+/etc/init.d/we826q-tailscale disable 2>/dev/null || :
+exit 0
