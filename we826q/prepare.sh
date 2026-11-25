@@ -10,11 +10,15 @@ test "$(git rev-parse HEAD)" = "$OPENWRT_COMMIT"
 # The exact upstream commit is the release authority.
 git apply --check "$root/we826q/board.patch"
 git apply "$root/we826q/board.patch"
+# Stage the local package before feeds creates the package metadata cache.
+cp -R "$root/we826q/package" package/we826q-tailscale
 ./scripts/feeds update -a
-./scripts/feeds install -a
+# Install only our package closure. Installing every unrelated LuCI app exposes
+# the release feed's luci-app-weechat/weechat variant dependency cycle.
+./scripts/feeds install luci-light luci-proto-modemmanager modemmanager frpc xz
 test -f feeds/packages/net/frp/Makefile
 grep -q 'BuildPackage,frpc' feeds/packages/net/frp/Makefile
-cp -R "$root/we826q/package" package/we826q-tailscale
+./scripts/feeds list -s -f > "$root/diagnostics/feeds.conf"
 mkdir -p files
 cp -R "$root/we826q/files/." files/
 chmod 755 files/etc/uci-defaults/90-we826q files/etc/init.d/we826q-modem-discover files/usr/sbin/we826q-modem-discover
